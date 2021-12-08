@@ -1,4 +1,5 @@
 # shellcheck shell=sh
+ERROR_COUNT=0
 
 # Check whether to use latest version of PMD
 if [ "$PMD_VERSION" == 'latest' ]; then
