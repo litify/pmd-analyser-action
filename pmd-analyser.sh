@@ -28,17 +28,25 @@ else
     # Run the analysis
     pmd-bin-"${PMD_VERSION}"/bin/run.sh pmd -filelist diff-file.csv -R "$RULES_PATH" -failOnViolation false -f sarif > pmd-raw-output.sarif
 fi
-# Loop through each rule and see if an error should be thrown
-echo "::set-output name=error-found::false"
-while read -r rule; do
-    RULE="$(echo "$rule" | jq --raw-output '.id')"
-    if [[ $RULE && "$ERROR_RULES" == *"$RULE"* ]]; then
-        echo "::set-output name=error-found::true"
-        break
-    fi
-done <<< "$(cat pmd-raw-output.sarif | jq --compact-output '.runs[] .tool .driver .rules[]')"
-# Set the correct file location for the report
-cat pmd-raw-output.sarif | jq --arg workspace "$WORKSPACE" '(.runs[] .results[] .locations[] .physicalLocation .artifactLocation .uri) |= ltrimstr($workspace)' > pmd-file-locations-output.sarif
-# Set the rule level configurations for whether they are notes or errors
-cat pmd-file-locations-output.sarif | jq --arg errors "$ERROR_RULES" '((.runs[] .tool .driver .rules[]) | select(.id==($errors | split(",")[]))) += {"defaultConfiguration": {"level": "error"}}' > pmd-errors-output.sarif
-cat pmd-errors-output.sarif | jq --arg notes "$NOTE_RULES" '((.runs[] .tool .driver .rules[]) | select(.id==($notes | split(",")[]))) += {"defaultConfiguration": {"level": "note"}}' > pmd-output.sarif
+# Loop through each file and then loop through each violation identified
+ while read -r file; do
+    FILENAME="$(echo "$file" | jq --raw-output '.filename | ltrimstr("${{ github.workspace }}/")')"
+    while read -r violation; do
+        MESSAGE="$(echo "$violation" | jq --raw-output '" \(.ruleset) - \(.rule): \(.description). This applies from line \(.beginline) to \(.endline) and from column \(.begincolumn) to \(.endcolumn). For more information on this rule visit \(.externalInfoUrl)"')"
+        LINE="$(echo "$violation" | jq --raw-output '.beginline')"
+        COLUMN="$(echo "$violation" | jq --raw-output '.begincolumn')"
+        RULE="$(echo "$violation" | jq --raw-output '.rule')"
+        if [ -n "$RULE" ]; then
+            if [[ "$ERROR_RULES" == *"$RULE"* ]]; then
+                echo ::error file="$FILENAME",line="$LINE",col="$COLUMN"::"$MESSAGE"
+                ERROR_COUNT=$((ERROR_COUNT + 1))
+            else
+                echo ::warning file="$FILENAME",line="$LINE",col="$COLUMN"::"$MESSAGE"
+            fi
+        fi
+    done <<< "$(echo "$file" | jq --compact-output '.violations[]')"
+done <<< "$(cat pmd-output.json | jq --compact-output '.files[]')"
+# If there are any errors logged we want this to fail (warnings don't count)
+if [ "$ERROR_COUNT" -gt 0 ]; then
+    exit 3
+fi
