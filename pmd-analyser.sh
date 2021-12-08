@@ -24,7 +24,7 @@ else
         fi
     else
         # Irrespective of the file type diff selected on a push event, we will always do a git diff (as we can't get that from the GitHub API)
-        git diff --name-only --diff-filter=d "$CURRENT_CODE".."$CHANGED_CODE" | paste -s -d "," >> diff-file.csv
+        git diff --name-only --diff-filter=d origin/"$CURRENT_CODE"..origin/"$CHANGED_CODE" | paste -s -d "," >> diff-file.csv
     fi
     # Run the analysis
     pmd-bin-"${PMD_VERSION}"/bin/run.sh pmd -filelist diff-file.csv -R "$RULES_PATH" -failOnViolation false -f json > pmd-output.json
