@@ -26,7 +26,7 @@ else
         git diff --name-only --diff-filter=d "$CURRENT_CODE".."$CHANGED_CODE" | paste -s -d "," >> diff-file.csv
     fi
     # Run the analysis
-    pmd-bin-"${PMD_VERSION}"/bin/run.sh pmd -d "$FILE_PATH" -R "$RULES_PATH" -failOnViolation false -f json > pmd-output.json
+    pmd-bin-"${PMD_VERSION}"/bin/run.sh pmd -filelist diff-file.csv -R "$RULES_PATH" -failOnViolation false -f json > pmd-output.json
 fi
 # Loop through each file and then loop through each violation identified
  while read -r file; do
